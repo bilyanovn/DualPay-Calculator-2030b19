@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DualPay Calculator</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#064e3b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            // Dollar Theme Colors
+                            dark: '#022c22',    // Emerald 950 (Много тъмно зелено за текст)
+                            primary: '#059669', // Emerald 600 (Основен зелен акцент)
+                            light: '#d1fae5',   // Emerald 100 (Светъл фон за елементи)
+                            red: '#ef4444',     // Грешка
+                        }
+                    },
+                    fontFamily: {
+                        display: ['Comfortaa', 'cursive'],
+                        body: ['Montserrat', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 8s ease-in-out infinite',
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slideUp 0.4s ease-out forwards',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0) rotate(0deg) scale(1)' },
+                            '50%': { transform: 'translateY(-15px) rotate(3deg) scale(1.05)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(5px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(100%)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Styles for Glassmorphism & Background */
+        body {
+            /* Фон тип "Долар" - преливащ от тъмно зелено (горе) към по-светло (долу) */
+            background: linear-gradient(160deg, #064e3b 0%, #10b981 100%);
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 15px 35px -5px rgba(6, 78, 59, 0.4); /* Зеленикава сянка */
+        }
+
+        /* Dynamic Background Symbols */
+        .symbol-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            opacity: 1;
+            overflow: hidden;
+        }
+
+        .symbol-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Comfortaa', cursive;
+            font-size: 28px;
+            /* Colors are now set via JS for gradient effect */
+            opacity: 0.25; 
+            animation: float var(--duration) ease-in-out infinite;
+            animation-delay: var(--delay);
+        }
+
+        /* Custom Input Styling */
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 font-body text-gray-800">
+
+    <!-- Dynamic Background Container -->
+    <div id="dynamic-bg" class="symbol-bg"></div>
+
+    <!-- App Container -->
+    <main class="w-full max-w-md glass-panel rounded-2xl p-4 relative flex flex-col gap-3 transition-all duration-300 shadow-2xl">
+        
+        <!-- Header & Logo -->
+        <header class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2 w-full">
+                <!-- Canvas Icon Container -->
+                <div class="w-10 h-10 rounded-lg bg-brand-dark shadow-md flex items-center justify-center text-white overflow-hidden shrink-0">
+                    <canvas id="appIconCanvas" width="512" height="512" class="w-full h-full"></canvas>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-display font-bold text-xl text-brand-dark leading-tight">DualPay</h1>
+                        
+                        <!-- Install Button (ALWAYS VISIBLE NOW) -->
+                        <button id="installBtn" class="flex items-center gap-1 bg-brand-primary text-white px-2 py-0.5 rounded-full shadow text-[10px] font-bold hover:bg-brand-dark transition-colors animate-pulse-slow leading-none h-5 cursor-pointer">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Инсталирай
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-brand-primary font-bold uppercase tracking-wide">Калкулатор</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- INPUT: Total Due (Dollar Green Theme) -->
+        <div class="bg-brand-primary rounded-xl p-3 shadow-md text-white border border-emerald-500 relative overflow-hidden">
+            <!-- Background pattern opacity -->
+            <div class="absolute inset-0 bg-white opacity-5 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, #000 10px, #000 11px);"></div>
+            
+            <label class="block text-[10px] font-bold uppercase tracking-widest mb-0 opacity-90 font-display text-emerald-100">Сума за плащане</label>
+            <div class="flex items-center justify-between gap-2">
+                <input type="number" id="totalDue" inputmode="decimal" placeholder="0.00" 
+                    class="bg-transparent text-3xl font-bold w-full placeholder-emerald-200/50 focus:outline-none text-right z-10"
+                    oninput="calculateChange()">
+                
+                <!-- Currency Toggle -->
+                <div class="flex bg-black/20 rounded-md p-0.5 shrink-0 z-10">
+                    <button id="btnTotalBGN" class="w-10 py-0.5 rounded text-xs font-bold bg-white text-brand-primary shadow-sm transition-all" onclick="setTotalCurrency('BGN')">BGN</button>
+                    <button id="btnTotalEUR" class="w-10 py-0.5 rounded text-xs font-bold text-emerald-100 transition-all" onclick="setTotalCurrency('EUR')">EUR</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- INPUTS: Payment Methods -->
+        <div class="space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+                <!-- Paid in BGN -->
+                <div class="bg-white rounded-xl p-2 border border-emerald-100 shadow-sm focus-within:border-brand-primary focus-within:ring-1 focus-within:ring-brand-primary transition-all">
+                    <label class="block text-[10px] text-gray-500 font-bold mb-0 uppercase tracking-tight">Платено (лв)</label>
+                    <input type="number" id="paidBGN" inputmode="decimal" placeholder="0" 
+                        class="w-full text-3xl font-bold text-brand-dark bg-transparent focus:outline-none text-right placeholder-gray-200"
+                        oninput="calculateChange()">
+                </div>
+
+                <!-- Paid in EUR -->
+                <div class="bg-white rounded-xl p-2 border border-emerald-100 shadow-sm focus-within:border-brand-primary focus-within:ring-1 focus-within:ring-brand-primary transition-all">
+                    <label class="block text-[10px] text-gray-500 font-bold mb-0 uppercase tracking-tight">Платено (€)</label>
+                    <input type="number" id="paidEUR" inputmode="decimal" placeholder="0" 
+                        class="w-full text-3xl font-bold text-brand-dark bg-transparent focus:outline-none text-right placeholder-gray-200"
+                        oninput="calculateChange()">
+                </div>
+            </div>
+        </div>
+
+        <!-- ERROR MESSAGE -->
+        <div id="errorBox" class="hidden animate-fade-in bg-brand-red text-white py-2 px-3 rounded-lg text-center text-xs font-bold shadow-sm">
+            Недостатъчна сума! <br>
+            <span id="missingAmount" class="font-normal opacity-90 text-sm"></span>
+        </div>
+
+        <!-- RESULT: Change -->
+        <div id="resultBox" class="hidden animate-fade-in flex flex-col gap-2">
+            <div class="h-px w-full bg-emerald-100"></div>
+            
+            <div class="flex items-center justify-between">
+                <span class="font-display font-bold text-brand-dark text-sm">Ресто:</span>
+                
+                <div class="flex bg-gray-100 rounded-md p-0.5">
+                    <button id="btnOutBGN" class="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-dark text-white shadow transition-all" onclick="setOutputCurrency('BGN')">BGN</button>
+                    <button id="btnOutEUR" class="px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 transition-all" onclick="setOutputCurrency('EUR')">EUR</button>
+                </div>
+            </div>
+
+            <div class="bg-emerald-50 rounded-xl py-3 px-4 border border-emerald-100 text-center relative overflow-hidden">
+                <div id="changeMain" class="text-4xl font-extrabold text-brand-dark tracking-tighter transition-all leading-none">
+                    0.00 <span class="text-xl align-top">лв</span>
+                </div>
+                <div id="changeSecondary" class="text-xs font-bold text-emerald-600 mt-1">
+                    = 0.00 €
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-1 text-center border-t border-emerald-100/50 pt-2">
+            <p class="text-brand-dark font-bold text-[10px] bg-emerald-100/50 inline-block px-2 py-0.5 rounded-full mb-1">
+                1 EUR = 1.95583 BGN
+            </p>
+            <p class="text-[9px] text-emerald-600/60 font-display">
+                © Nikola Bilyanov • DualPay PWA
+            </p>
+        </footer>
+
+    </main>
+    
+    <!-- INSTALL INSTRUCTION TOAST (Hidden by default) -->
+    <div id="installToast" class="fixed bottom-4 left-4 right-4 bg-brand-dark text-white p-4 rounded-xl shadow-2xl z-50 hidden animate-slide-up border border-emerald-500">
+        <div class="flex items-start gap-3">
+            <div class="bg-brand-primary p-2 rounded-full shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M12 16a4 4 0 110-8 4 4 0 010 8z" />
+                </svg>
+            </div>
+            <div>
+                <h4 class="font-bold text-sm mb-1 font-display">Инсталиране</h4>
+                <p class="text-xs opacity-90 leading-relaxed">
+                    За да инсталирате приложението:<br>
+                    1. Отворете менюто на браузъра (⋮ или <span class="font-serif">↑</span>).<br>
+                    2. Изберете <strong>"Добави към началния екран"</strong> или "Install App".
+                </p>
+                <button onclick="document.getElementById('installToast').classList.add('hidden')" class="mt-2 text-xs font-bold text-brand-primary hover:text-white uppercase tracking-wider">Разбрах</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logic -->
+    <script>
+        // --- 1. CONFIGURATION ---
+        const RATE = 1.95583;
+        let currentTotalCurrency = 'BGN';
+        let currentOutputCurrency = 'BGN';
+        let deferredPrompt;
+
+        // --- 2. BACKGROUND ANIMATION & COLORING ---
+        function initBackground() {
+            const container = document.getElementById('dynamic-bg');
+            // Calculate grid size
+            const cols = Math.ceil(window.innerWidth / 70);
+            const rows = Math.ceil(window.innerHeight / 70);
+            const total = cols * rows;
+
+            for (let i = 0; i < total; i++) {
+                const el = document.createElement('div');
+                el.classList.add('symbol-item');
+                // Symbols: €, лв, $
+                const symbols = ['€', 'лв', '$']; 
+                el.textContent = symbols[i % 3];
+                
+                // Animation settings
+                const duration = 6 + Math.random() * 8 + 's';
+                const delay = Math.random() * 5 + 's';
+                el.style.setProperty('--duration', duration);
+                el.style.setProperty('--delay', delay);
+
+                // --- DYNAMIC COLOR LOGIC ---
+                // Calculate which row this element is in (from top 0 to bottom 'rows')
+                const currentRow = Math.floor(i / cols);
+                const progress = currentRow / rows; // 0 (top) to 1 (bottom)
+                
+                // We want:
+                // Top (Dark BG) -> Light Green Text
+                // Bottom (Light BG) -> Dark Green Text
+                
+                // Light Green Color (Emerald 300: #6ee7b7 -> 110, 231, 183)
+                const startR = 110, startG = 231, startB = 183;
+                // Dark Green Color (Emerald 900: #064e3b -> 6, 78, 59)
+                const endR = 6, endG = 78, endB = 59;
+                
+                // Interpolate
+                const r = Math.round(startR + (endR - startR) * progress);
+                const g = Math.round(startG + (endG - startG) * progress);
+                const b = Math.round(startB + (endB - startB) * progress);
+                
+                el.style.color = `rgb(${r}, ${g}, ${b})`;
+                
+                container.appendChild(el);
+            }
+        }
+
+        // --- 3. ICON GENERATION ---
+        function generateIcon() {
+            const canvas = document.getElementById('appIconCanvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Dollar Dark Green
+            ctx.fillStyle = '#064e3b'; 
+            ctx.fillRect(0, 0, 512, 512);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Clean Horizontal Layout
+            ctx.font = 'bold 140px Comfortaa'; 
+            ctx.fillText('€', 120, 270);
+            ctx.fillText('лв', 392, 270);
+            
+            ctx.font = '100px Arial'; 
+            ctx.fillText('⇄', 256, 256);
+
+            return canvas.toDataURL('image/png');
+        }
+
+        // --- 4. CALCULATOR LOGIC ---
+        function setTotalCurrency(curr) {
+            currentTotalCurrency = curr;
+            const btnBGN = document.getElementById('btnTotalBGN');
+            const btnEUR = document.getElementById('btnTotalEUR');
+
+            if (curr === 'BGN') {
+                btnBGN.className = "w-10 py-0.5 rounded text-xs font-bold bg-white text-brand-primary shadow-sm transition-all";
+                btnEUR.className = "w-10 py-0.5 rounded text-xs font-bold text-emerald-100 transition-all";
+            } else {
+                btnEUR.className = "w-10 py-0.5 rounded text-xs font-bold bg-white text-brand-primary shadow-sm transition-all";
+                btnBGN.className = "w-10 py-0.5 rounded text-xs font-bold text-emerald-100 transition-all";
+            }
+            calculateChange();
+        }
+
+        function setOutputCurrency(curr) {
+            currentOutputCurrency = curr;
+            const btnBGN = document.getElementById('btnOutBGN');
+            const btnEUR = document.getElementById('btnOutEUR');
+
+            if (curr === 'BGN') {
+                btnBGN.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-brand-dark text-white shadow transition-all";
+                btnBGN.classList.remove('text-gray-400');
+                btnEUR.className = "px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 transition-all bg-transparent shadow-none";
+            } else {
+                btnEUR.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-brand-dark text-white shadow transition-all";
+                btnEUR.classList.remove('text-gray-400');
+                btnBGN.className = "px-2 py-0.5 rounded text-[10px] font-bold text-gray-400 transition-all bg-transparent shadow-none";
+            }
+            calculateChange();
+        }
+
+        function calculateChange() {
+            let totalDueVal = parseFloat(document.getElementById('totalDue').value) || 0;
+            let paidBGN = parseFloat(document.getElementById('paidBGN').value) || 0;
+            let paidEUR = parseFloat(document.getElementById('paidEUR').value) || 0;
+
+            let totalDueInBGN = (currentTotalCurrency === 'EUR') ? totalDueVal * RATE : totalDueVal;
+            let totalPaidInBGN = paidBGN + (paidEUR * RATE);
+
+            let diffBGN = totalPaidInBGN - totalDueInBGN;
+
+            const errorBox = document.getElementById('errorBox');
+            const resultBox = document.getElementById('resultBox');
+            const missingText = document.getElementById('missingAmount');
+
+            if (totalDueVal === 0 && paidBGN === 0 && paidEUR === 0) {
+                errorBox.classList.add('hidden');
+                resultBox.classList.add('hidden');
+                return;
+            }
+
+            if (diffBGN < -0.009) { 
+                errorBox.classList.remove('hidden');
+                resultBox.classList.add('hidden');
+                let missingBGN = Math.abs(diffBGN);
+                let missingEUR = missingBGN / RATE;
+                missingText.innerHTML = `Недостигат: ${missingBGN.toFixed(2)} лв <span class="opacity-75">(${missingEUR.toFixed(2)} €)</span>`;
+            } else {
+                errorBox.classList.add('hidden');
+                resultBox.classList.remove('hidden');
+                let changeBGN = diffBGN;
+                let changeEUR = diffBGN / RATE;
+                const mainDisplay = document.getElementById('changeMain');
+                const secDisplay = document.getElementById('changeSecondary');
+
+                if (currentOutputCurrency === 'BGN') {
+                    mainDisplay.innerHTML = `${changeBGN.toFixed(2)} <span class="text-xl align-top">лв</span>`;
+                    secDisplay.textContent = `= ${changeEUR.toFixed(2)} €`;
+                } else {
+                    mainDisplay.innerHTML = `${changeEUR.toFixed(2)} <span class="text-xl align-top">€</span>`;
+                    secDisplay.textContent = `= ${changeBGN.toFixed(2)} лв`;
+                }
+            }
+        }
+
+        // --- 5. PWA & INSTALL ---
+        function setupPWA() {
+            const iconUrl = generateIcon();
+            let link = document.createElement('link');
+            link.type = 'image/x-icon';
+            link.rel = 'shortcut icon';
+            link.href = iconUrl;
+            document.getElementsByTagName('head')[0].appendChild(link);
+
+            const manifest = {
+                name: "DualPay Calculator",
+                short_name: "DualPay",
+                start_url: window.location.href,
+                display: "standalone",
+                background_color: "#064e3b",
+                theme_color: "#064e3b",
+                orientation: "portrait",
+                icons: [
+                    { src: iconUrl, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+                    { src: iconUrl, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+                ]
+            };
+            
+            const blobManifest = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = URL.createObjectURL(blobManifest);
+            document.head.appendChild(manifestLink);
+
+            const installBtn = document.getElementById('installBtn');
+            const toast = document.getElementById('installToast');
+            
+            // Check if already installed
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                installBtn.classList.add('hidden');
+            }
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+            });
+
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    deferredPrompt = null;
+                } else {
+                    // Fallback: Show toast instruction
+                    toast.classList.remove('hidden');
+                    // Hide toast after 8 seconds if not interacted
+                    setTimeout(() => {
+                        toast.classList.add('hidden');
+                    }, 8000);
+                }
+            });
+
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    self.addEventListener('install', (e) => self.skipWaiting());
+                    self.addEventListener('activate', (e) => self.clients.claim());
+                    self.addEventListener('fetch', (e) => {
+                        e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+                    });
+                `;
+                const blobSW = new Blob([swCode], {type: 'text/javascript'});
+                // Add try-catch block for blob URL registration
+                try {
+                    const swUrl = URL.createObjectURL(blobSW);
+                    navigator.serviceWorker.register(swUrl)
+                        .then(() => console.log('SW Registered'))
+                        .catch(err => console.warn('SW Registration Failed:', err));
+                } catch (e) {
+                    console.warn('SW Setup Error:', e);
+                }
+            }
+        }
+
+        window.addEventListener('load', () => {
+            initBackground();
+            setupPWA();
+            window.addEventListener('resize', () => {
+                document.getElementById('dynamic-bg').innerHTML = '';
+                initBackground();
+            });
+        });
+    </script>
+</body>
+</html>
